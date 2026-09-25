@@ -16,5 +16,6 @@ class Property(Base):
     description = Column(String)
     price = Column(Float)
     location = Column(String)
+    image_url = Column(String, nullable=True)
     owner_id = Column(Integer, ForeignKey("users.id"))
     owner = relationship("User")
