@@ -7,15 +7,15 @@ import models, database, auth
 from pydantic import BaseModel
 import os, shutil
 
+# Pehle folder banao, tabhi mount kar payenge
+os.makedirs("uploads", exist_ok=True)
+
 # Create tables
 models.Base.metadata.create_all(bind=database.engine)
 
 app = FastAPI()
 
-# Static folder for images - IMPORTANT: app banne ke BAAD
-os.makedirs("uploads", exist_ok=True)
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
-
+# CORS - sirf EK BAAR
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -24,14 +24,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Static folder - sirf EK BAAR, folder banne ke BAAD
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
 class UserCreate(BaseModel):
     email: str
     password: str
     role: str = "tenant"
-
-class UserLogin(BaseModel):
-    email: str
-    password: str
 
 @app.post("/register")
 def register(user: UserCreate, db: Session = Depends(database.get_db)):
@@ -50,7 +49,6 @@ def register(user: UserCreate, db: Session = Depends(database.get_db)):
 
 @app.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(database.get_db)):
-    # Swagger username bhejta hai, hum email samajh ke check karenge
     db_user = db.query(models.User).filter(models.User.email == form_data.username).first()
     if not db_user or not auth.verify_password(form_data.password, db_user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
