@@ -1,4 +1,4 @@
-__pycache__/
+﻿__pycache__/
 **/__pycache__/
 .venv/
 venv/
@@ -13,8 +13,5 @@ node_modules/
 dist/
 build/
 .env
-*.webp
-*.mp4
 .DS_Store
 rentnear/
-uploads/
