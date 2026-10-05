@@ -10,7 +10,11 @@ venv/
 !backend/uploads/.gitkeep
 node_modules/
 **/node_modules/
+dist/
+build/
+.env
 *.webp
 *.mp4
 .DS_Store
 rentnear/
+uploads/
