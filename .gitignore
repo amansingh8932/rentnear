@@ -1,17 +1,22 @@
-﻿__pycache__/
-**/__pycache__/
-.venv/
+﻿# Python
+__pycache__/
+*.pyc
+*.pyo
 venv/
-**/venv/
-*.db
-**/rentnear.db
-**/uploads/
-**/uploads/*
-!backend/uploads/.gitkeep
-node_modules/
-**/node_modules/
-dist/
-build/
 .env
+rentnear.db
+backend/rentnear.db
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Node
+node_modules/
+dist/
+.env.local
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Extra
 rentnear/
