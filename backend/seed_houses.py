@@ -1,3 +1,5 @@
+#i have already  this code in my C:\coding\rentnear\backend\seed_houses.py 
+
 import os, shutil, glob, sqlite3, uuid, json
 
 # Yeh script jahan hai, usi folder se house_images dhoondhega
