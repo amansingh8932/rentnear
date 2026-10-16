@@ -14,13 +14,16 @@ from typing import List, Optional
 
 SECRET_KEY = os.getenv("SECRET_KEY", "rentnear-secret-v18-full")
 ALGORITHM = "HS256"
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
+IS_VERCEL = os.getenv("VERCEL") == "1" or os.getenv("VERCEL_ENV") is not None
+UPLOAD_DIR = "/tmp/uploads" if IS_VERCEL else os.path.join(BASE_DIR, "uploads")
+DB_PATH = os.path.join("/tmp" if IS_VERCEL else BASE_DIR, "rentnear.db")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(os.path.join(UPLOAD_DIR, "reviews"), exist_ok=True)
 os.makedirs(os.path.join(UPLOAD_DIR, "complaints"), exist_ok=True)
 
-DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{os.path.join(BASE_DIR, 'rentnear.db')}")
+DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DB_PATH}")
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {})
 SessionLocal = sessionmaker(bind=engine)
 Base = declarative_base()
