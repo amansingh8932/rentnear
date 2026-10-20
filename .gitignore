@@ -20,3 +20,5 @@ Thumbs.db
 
 # Extra
 rentnear/
+.neon
+.env.local
