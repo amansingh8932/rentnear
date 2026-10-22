@@ -11,6 +11,8 @@ from datetime import datetime, timedelta
 import os, shutil, json, hashlib, random
 from pydantic import BaseModel
 from typing import List, Optional
+import cloudinary
+import cloudinary.uploader
 
 SECRET_KEY = os.getenv("SECRET_KEY", "rentnear-secret-v18-full")
 ALGORITHM = "HS256"
@@ -23,8 +25,43 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(os.path.join(UPLOAD_DIR, "reviews"), exist_ok=True)
 os.makedirs(os.path.join(UPLOAD_DIR, "complaints"), exist_ok=True)
 
+# --- CLOUDINARY CONFIG - PERMANENT IMAGES ---
+cloudinary.config(
+    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME", "qvsitr4j"),
+    api_key=os.getenv("CLOUDINARY_API_KEY", "611364774983776"),
+    api_secret=os.getenv("CLOUDINARY_API_SECRET"),
+    secure=True
+)
+
+def upload_to_cloudinary(file_obj, folder="rentnear"):
+    """Upload UploadFile to Cloudinary and return secure_url, fallback to local"""
+    try:
+        # file_obj can be UploadFile or file handle
+        if hasattr(file_obj, 'file'):
+            file_obj.file.seek(0)
+            result = cloudinary.uploader.upload(file_obj.file, folder=folder, resource_type="auto")
+        else:
+            result = cloudinary.uploader.upload(file_obj, folder=folder, resource_type="auto")
+        return result.get("secure_url", "")
+    except Exception as e:
+        print(f"[Cloudinary Upload Failed] {e} - trying local fallback")
+        try:
+            # fallback local save
+            if hasattr(file_obj, 'filename') and file_obj.filename:
+                fn = f"{int(datetime.now().timestamp()*1000)}_{file_obj.filename}"
+                fp = os.path.join(UPLOAD_DIR, fn)
+                file_obj.file.seek(0)
+                with open(fp, "wb") as out:
+                    shutil.copyfileobj(file_obj.file, out)
+                return f"uploads/{fn}"
+        except:
+            pass
+        return ""
+
 DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DB_PATH}")
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {})
+if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine)
 Base = declarative_base()
 
@@ -93,7 +130,6 @@ class Property(Base):
     latitude = Column(String, default="26.8467")
     longitude = Column(String, default="80.9462")
     map_address = Column(String, default="")
-    # NEW FIELDS ADDED - NOT TOUCHING OLD
     gas = Column(Float, default=400)
     internet = Column(Float, default=500)
     wifi_charges = Column(Float, default=500)
@@ -315,7 +351,7 @@ app.add_middleware(
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 @app.get("/")
-def home(): return {"status": "RentNear v19 - Professional - 20 houses - Role based", "version": "19.0", "login": "test@testgmail.com / 123456"}
+def home(): return {"status": "RentNear v19 - Professional - 20 houses - Role based + Cloudinary Permanent", "version": "19.1-cloudinary", "login": "test@testgmail.com / 123456"}
 
 @app.post("/register")
 def register(payload: dict, db=Depends(get_db)):
@@ -424,13 +460,12 @@ def create_property(title: str=Form(...), price: float=Form(...), location: str=
     img_list=[]
     for img in images:
         if img.filename:
-            fn = f"{datetime.now().timestamp()}_{img.filename}"
-            fp = os.path.join(UPLOAD_DIR, fn)
-            with open(fp,"wb") as f: shutil.copyfileobj(img.file, f)
-            img_list.append(f"uploads/{fn}")
+            url = upload_to_cloudinary(img, folder="rentnear/properties")
+            if url:
+                img_list.append(url)
     prop = Property(title=title, price=price, location=location, description=description, contact=contact, bhk=bhk, house_type=house_type, furnishing=furnishing, property_age=property_age, facing=facing, floor_number=floor_number, total_floors=total_floors, area_sqft=area_sqft, pg_sharing_type=pg_sharing_type, pg_available_for=pg_available_for, pg_food_included=pg_food_included, pg_food_type=pg_food_type, pg_rules=pg_rules, parking=parking, garden=garden, lift_available=lift_available, gated_society=gated_society, business_suitable=business_suitable, washroom=washroom, owner_id=user.id, owner_email=user.email, maintenance=float(maintenance or 0), electricity=float(electricity or 0), water=float(water or 0), gas=float(gas or 400), internet=float(internet or 500), wifi_charges=float(wifi_charges or 500), deposit=float(deposit or 0), brokerage_percent=float(brokerage_percent or 15), images=json.dumps(img_list), image_url=img_list[0] if img_list else "", amenities=amenities, nearby_places=nearby_places, latitude=latitude, longitude=longitude, map_address=map_address, extra_details=extra_details)
     db.add(prop); db.commit(); db.refresh(prop)
-    return {"msg": "Property listed successfully", "id": prop.id}
+    return {"msg": "Property listed successfully with permanent Cloudinary images", "id": prop.id, "images": img_list}
 
 @app.put("/properties/{prop_id}")
 def update_property(prop_id: int, title: str=Form(...), price: float=Form(...), location: str=Form(...), description: str=Form(""), contact: str=Form(""), bhk: str=Form("2BHK"), house_type: str=Form("Flat"), furnishing: str=Form("Semi-Furnished"), property_age: str=Form("0-1 year"), facing: str=Form("East"), floor_number: str=Form(""), total_floors: str=Form(""), area_sqft: str=Form(""), pg_sharing_type: str=Form(""), pg_available_for: str=Form(""), pg_food_included: str=Form(""), pg_food_type: str=Form(""), pg_rules: str=Form("[]"), parking: str=Form(""), garden: str=Form(""), lift_available: str=Form(""), gated_society: str=Form(""), business_suitable: str=Form(""), washroom: str=Form(""), maintenance: str=Form("1500"), electricity: str=Form("1200"), water: str=Form("300"), gas: str=Form("400"), internet: str=Form("500"), wifi_charges: str=Form("500"), deposit: str=Form("30000"), brokerage_percent: str=Form("15"), amenities: str=Form("[]"), nearby_places: str=Form("[]"), latitude: str=Form("26.8467"), longitude: str=Form("80.9462"), map_address: str=Form(""), extra_details: str=Form("{}"), images: List[UploadFile]=File([]), authorization: Optional[str]=Header(None), db=Depends(get_db)):
@@ -444,13 +479,13 @@ def update_property(prop_id: int, title: str=Form(...), price: float=Form(...), 
         img_list=[]
         for img in images:
             if img.filename:
-                fn = f"{datetime.now().timestamp()}_{img.filename}"
-                fp = os.path.join(UPLOAD_DIR, fn)
-                with open(fp,"wb") as f: shutil.copyfileobj(img.file, f)
-                img_list.append(f"uploads/{fn}")
-        prop.images=json.dumps(img_list)
-        prop.image_url=img_list[0] if img_list else prop.image_url
-    db.commit(); return {"msg": "Property updated successfully"}
+                url = upload_to_cloudinary(img, folder="rentnear/properties")
+                if url:
+                    img_list.append(url)
+        if img_list:
+            prop.images=json.dumps(img_list)
+            prop.image_url=img_list[0]
+    db.commit(); return {"msg": "Property updated successfully with permanent images"}
 
 @app.delete("/properties/{prop_id}")
 def delete_property(prop_id: int, authorization: Optional[str]=Header(None), db=Depends(get_db)):
@@ -505,15 +540,9 @@ def create_complaint(property_id: int = Form(...), title: str = Form(...), descr
     if not prop: raise HTTPException(404, "Property not found")
     photo_url = ""; video_url = ""
     if photo and photo.filename:
-        fname = f"{int(datetime.now().timestamp())}_{photo.filename}"
-        fpath = os.path.join(UPLOAD_DIR, "complaints", fname)
-        with open(fpath, "wb") as out: shutil.copyfileobj(photo.file, out)
-        photo_url = f"uploads/complaints/{fname}"
+        photo_url = upload_to_cloudinary(photo, folder="rentnear/complaints")
     if video and video.filename:
-        fname = f"{int(datetime.now().timestamp())}_{video.filename}"
-        fpath = os.path.join(UPLOAD_DIR, "complaints", fname)
-        with open(fpath, "wb") as out: shutil.copyfileobj(video.file, out)
-        video_url = f"uploads/complaints/{fname}"
+        video_url = upload_to_cloudinary(video, folder="rentnear/complaints")
     complaint = Complaint(property_id=property_id, property_title=prop.title, renter_email=user.email, owner_email=prop.owner_email, title=title, description=description, category=category, priority=priority, status="open", photo=photo_url, video=video_url, created_at=datetime.now().isoformat(), updated_at=datetime.now().isoformat())
     db.add(complaint); db.commit(); db.refresh(complaint); return complaint
 
@@ -548,15 +577,9 @@ def create_review(property_id: int = Form(...), rating: int = Form(...), comment
     if not prop: raise HTTPException(404, "Property not found")
     photo_url = ""; video_url = ""
     if photo and photo.filename:
-        fname = f"{int(datetime.now().timestamp())}_{photo.filename}"
-        fpath = os.path.join(UPLOAD_DIR, "reviews", fname)
-        with open(fpath, "wb") as out: shutil.copyfileobj(photo.file, out)
-        photo_url = f"uploads/reviews/{fname}"
+        photo_url = upload_to_cloudinary(photo, folder="rentnear/reviews")
     if video and video.filename:
-        fname = f"{int(datetime.now().timestamp())}_{video.filename}"
-        fpath = os.path.join(UPLOAD_DIR, "reviews", fname)
-        with open(fpath, "wb") as out: shutil.copyfileobj(video.file, out)
-        video_url = f"uploads/reviews/{fname}"
+        video_url = upload_to_cloudinary(video, folder="rentnear/reviews")
     rev = Review(property_id=property_id, property_title=prop.title, reviewer_email=user.email, reviewer_name=user.full_name or user.email.split("@")[0], owner_email=prop.owner_email, rating=rating, comment=comment, pros=pros, cons=cons, photo=photo_url, video=video_url, created_at=datetime.now().isoformat())
     db.add(rev); db.commit(); db.refresh(rev); return rev
 
