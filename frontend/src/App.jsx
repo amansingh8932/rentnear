@@ -31,6 +31,8 @@ export default function App(){
   const [propForm,setPropForm]=useState({ title:"", price:"", location:"Gomti Nagar, Lucknow", description:"", contact:"", bhk:"2BHK", house_type:"Flat", furnishing:"Semi-Furnished", area_sqft:"", maintenance:"1500", deposit:"30000", facing:"East", electricity:"1200", water:"300", gas:"400", internet:"500", wifi:"500", other:"0" })
   const [files,setFiles]=useState([])
   const [photoPreviews,setPhotoPreviews]=useState([])
+  const [videoFiles,setVideoFiles]=useState([])
+  const [videoPreviews,setVideoPreviews]=useState([])
   const [mapLat,setMapLat]=useState("26.8467")
   const [mapLng,setMapLng]=useState("80.9462")
   const [selectedAmenities,setSelectedAmenities]=useState([])
@@ -143,13 +145,14 @@ export default function App(){
     fd.append("amenities", JSON.stringify(selectedAmenities)); fd.append("nearby_places", JSON.stringify([])); fd.append("extra_details", JSON.stringify({latitude:mapLat,longitude:mapLng})); fd.append("latitude", mapLat); fd.append("longitude", mapLng);
     fd.append("maintenance", propForm.maintenance); fd.append("electricity", propForm.electricity); fd.append("water", propForm.water); fd.append("gas", propForm.gas); fd.append("internet", propForm.internet); fd.append("wifi_charges", propForm.wifi); fd.append("other", propForm.other||"0");
     for(let f of files) fd.append("images", f)
+    for(let f of videoFiles) fd.append("images", f)  
     try{
       const url=editingId?`${API}/properties/${editingId}`:`${API}/properties`;
       const method=editingId?"PUT":"POST";
       const res=await fetch(url,{method,headers:{Authorization:`Bearer ${token}`},body:fd});
       if(!res.ok) throw new Error();
       showToast(editingId?"Property updated successfully":`${propForm.house_type} listed successfully`);
-      setView("home"); setTab("my"); setEditingId(null); setFiles([]); setPhotoPreviews([]); setSelectedAmenities([]); loadProps();
+      setView("home"); setTab("my"); setEditingId(null); setFiles([]); setPhotoPreviews([]); setVideoFiles([]); setVideoPreviews([]); setSelectedAmenities([]); loadProps();
     }catch{ showToast("Saved locally - backend may be offline","error"); setView("home"); setTab("my"); } finally{ setLoading(false) }
   }
 
@@ -778,10 +781,55 @@ html, body { margin:0; padding:0; overflow-x:hidden; width:100%; }
                   <div><label style={labelWarm}>WiFi ₹</label><input type="number" value={propForm.wifi} onChange={e=>setPropForm({...propForm,wifi:e.target.value})} style={{...inputWarm,marginTop:6}} /></div>
                   <div><label style={labelWarm}>Other ₹ (cleaning, club, etc)</label><input type="number" value={propForm.other} onChange={e=>setPropForm({...propForm,other:e.target.value})} style={{...inputWarm,marginTop:6}} placeholder="Other charges" /></div>
                 </div>
-                <div style={{marginTop:10,fontSize:11,background:"white",padding:8,borderRadius:8,border:"1px solid #F0E9DC"}}>Total tenant monthly estimate: <b>₹{(parseInt(propForm.price||0)+(parseInt(propForm.maintenance||0))+(parseInt(propForm.electricity||0))+(parseInt(propForm.water||0))+(parseInt(propForm.gas||0))+(parseInt(propForm.internet||0))+(parseInt(propForm.other||0))).toLocaleString()}</b> (Rent + all basic charges including Other)</div>
               </div>
 
-              <div style={{marginTop:14}}><label style={labelWarm}>Property photos</label><input type="file" multiple accept="image/*" onChange={e=>{const arr=Array.from(e.target.files); setFiles(arr); setPhotoPreviews(arr.map(f=>URL.createObjectURL(f)))}} style={{marginTop:6}} /><div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:10}}>{photoPreviews.map((u,i)=><img key={i} src={u} style={{width:70,height:70,borderRadius:10,objectFit:"cover",border:"1px solid #F0E9DC"}} />)}</div></div>
+
+              { /*ISSUE RESOLVED*/}
+              <div style={{ marginTop: 16, background: "white", border: "1px solid #F0E9DC", borderRadius: 14, padding: 16 }}>
+                <div style={{ fontWeight: 800, fontSize: 13 }}>PROPERTY MEDIA - Photos + Videos</div>
+                <div style={{ fontSize: 11, color: "#6b5e4f", marginTop: 4 }}>Tap to add up to 10 photos and 3 videos.</div>
+
+                <div style={{ marginTop: 12 }}>
+                  <label style={labelWarm}>Photos (up to 10) - JPG, PNG, WEBP</label>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(80px, 1fr))", gap: 10, marginTop: 8 }}>
+                    {photoPreviews.map((url, i) => (
+                      <div key={i} style={{ position: "relative", width: "100%", aspectRatio: "1", borderRadius: 12, overflow: "hidden", border: "1px solid #F0E9DC" }}>
+                        <img src={url} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        <button type="button" onClick={() => { setFiles(p => p.filter((_, idx) => idx !== i)); setPhotoPreviews(p => p.filter((_, idx) => idx !== i)) }} style={{ position: "absolute", top: 4, right: 4, width: 22, height: 22, borderRadius: 100, border: "none", background: "#dc2626", color: "white", fontWeight: 700, cursor: "pointer" }}>×</button>
+                      </div>
+                    ))}
+                    {files.length < 10 && (
+                      <label style={{ width: "100%", aspectRatio: "1", border: "2px dashed #E6DDD0", borderRadius: 12, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: "pointer", background: "#FFFBF5" }}>
+                        <span style={{ fontSize: 28, lineHeight: 1 }}>+</span>
+                        <span style={{ fontSize: 10, fontWeight: 700, marginTop: 2 }}>Add Photo</span>
+                        <input type="file" multiple accept="image/*" hidden onChange={e => { const nf = Array.from(e.target.files || []); const comb = [...files, ...nf].slice(0, 10); setFiles(comb); setPhotoPreviews(comb.map(f => URL.createObjectURL(f))) }} />
+                      </label>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 11, color: "#6b5e4f", marginTop: 6 }}>{files.length}/10 photos</div>
+                </div>
+
+                <div style={{ marginTop: 16 }}>
+                  <label style={labelWarm}>Videos (up to 3) - MP4, MOV, WEBM</label>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 10, marginTop: 8 }}>
+                    {videoPreviews.map((url, i) => (
+                      <div key={i} style={{ position: "relative", width: "100%", height: 90, borderRadius: 12, overflow: "hidden", border: "1px solid #F0E9DC", background: "#000" }}>
+                        <video src={url} style={{ width: "100%", height: "100%", objectFit: "cover" }} muted />
+                        <button type="button" onClick={() => { setVideoFiles(p => p.filter((_, idx) => idx !== i)); setVideoPreviews(p => p.filter((_, idx) => idx !== i)) }} style={{ position: "absolute", top: 4, right: 4, width: 22, height: 22, borderRadius: 100, border: "none", background: "#dc2626", color: "white", fontWeight: 700, cursor: "pointer" }}>×</button>
+                      </div>
+                    ))}
+                    {videoFiles.length < 3 && (
+                      <label style={{ width: "100%", height: 90, border: "2px dashed #E6DDD0", borderRadius: 12, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: "pointer", background: "#FFFBF5" }}>
+                        <span style={{ fontSize: 28, lineHeight: 1 }}>+</span>
+                        <span style={{ fontSize: 10, fontWeight: 700, marginTop: 2 }}>Add Video</span>
+                        <input type="file" multiple accept="video/*" hidden onChange={e => { const nf = Array.from(e.target.files || []); const comb = [...videoFiles, ...nf].slice(0, 3); setVideoFiles(comb); setVideoPreviews(comb.map(f => URL.createObjectURL(f))) }} />
+                      </label>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 11, color: "#6b5e4f", marginTop: 6 }}>{videoFiles.length}/3 videos</div>
+                </div>
+              </div>
+
               <button type="submit" disabled={loading} style={{width:"100%",marginTop:18,padding:"14px",borderRadius:100,background:"#1a1a2e",color:"white",border:"none",fontWeight:700,cursor:"pointer",fontSize:14}}>{loading?"Publishing...":editingId?"Update property with basic charges":"Publish property with map & basic charges"}</button>
             </form>
           </div>

@@ -27,36 +27,27 @@ os.makedirs(os.path.join(UPLOAD_DIR, "complaints"), exist_ok=True)
 
 # --- CLOUDINARY CONFIG - PERMANENT IMAGES ---
 cloudinary.config(
-    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME", "qvsitr4j"),
-    api_key=os.getenv("CLOUDINARY_API_KEY", "611364774983776"),
+    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
+    api_key=os.getenv("CLOUDINARY_API_KEY"),
     api_secret=os.getenv("CLOUDINARY_API_SECRET"),
     secure=True
 )
 
-def upload_to_cloudinary(file_obj, folder="rentnear"):
-    """Upload UploadFile to Cloudinary and return secure_url, fallback to local"""
+def upload_to_cloudinary(file_bytes, filename="img.jpg"):
+    if not os.getenv("CLOUDINARY_CLOUD_NAME"):
+        return None
     try:
-        # file_obj can be UploadFile or file handle
-        if hasattr(file_obj, 'file'):
-            file_obj.file.seek(0)
-            result = cloudinary.uploader.upload(file_obj.file, folder=folder, resource_type="auto")
-        else:
-            result = cloudinary.uploader.upload(file_obj, folder=folder, resource_type="auto")
-        return result.get("secure_url", "")
+        import io, uuid
+        result = cloudinary.uploader.upload(
+            io.BytesIO(file_bytes),
+            folder="rentnear",
+            public_id=f"{uuid.uuid4().hex}_{filename}",
+            resource_type="auto"  # <-- PHOTO + VIDEO both!
+        )
+        return result["secure_url"]
     except Exception as e:
-        print(f"[Cloudinary Upload Failed] {e} - trying local fallback")
-        try:
-            # fallback local save
-            if hasattr(file_obj, 'filename') and file_obj.filename:
-                fn = f"{int(datetime.now().timestamp()*1000)}_{file_obj.filename}"
-                fp = os.path.join(UPLOAD_DIR, fn)
-                file_obj.file.seek(0)
-                with open(fp, "wb") as out:
-                    shutil.copyfileobj(file_obj.file, out)
-                return f"uploads/{fn}"
-        except:
-            pass
-        return ""
+        print(f"Cloudinary failed: {e}")
+        return None
 
 DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DB_PATH}")
 if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
