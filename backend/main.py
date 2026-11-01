@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 from passlib.context import CryptContext
 from jose import jwt
 from datetime import datetime, timedelta
-import os, shutil, json, hashlib, random
+import os, shutil, json, hashlib, random , io, uuid
 from pydantic import BaseModel
 from typing import List, Optional
 import cloudinary
@@ -18,7 +18,7 @@ SECRET_KEY = os.getenv("SECRET_KEY", "rentnear-secret-v18-full")
 ALGORITHM = "HS256"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-IS_VERCEL = os.getenv("VERCEL") == "1" or os.getenv("VERCEL_ENV") is not None
+IS_VERCEL = os.getenv("VERCEL") == "1" or os.geten ("VERCEL_ENV") is not None
 UPLOAD_DIR = "/tmp/uploads" if IS_VERCEL else os.path.join(BASE_DIR, "uploads")
 DB_PATH = os.path.join("/tmp" if IS_VERCEL else BASE_DIR, "rentnear.db")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -33,21 +33,35 @@ cloudinary.config(
     secure=True
 )
 
-def upload_to_cloudinary(file_bytes, filename="img.jpg"):
+def upload_to_cloudinary(upload_file: UploadFile, folder="rentnear"):
+    """FIXED: Accepts UploadFile, supports images + videos, permanent URLs"""
     if not os.getenv("CLOUDINARY_CLOUD_NAME"):
+        print("CLOUDINARY_CLOUD_NAME not set")
         return None
     try:
-        import io, uuid
+        # Important: seek to start and read bytes
+        try:
+            upload_file.file.seek(0)
+        except:
+            pass
+        file_bytes = upload_file.file.read()
+        if not file_bytes or len(file_bytes) == 0:
+            print(f"Empty file: {upload_file.filename}")
+            return None
+        
         result = cloudinary.uploader.upload(
             io.BytesIO(file_bytes),
-            folder="rentnear",
-            public_id=f"{uuid.uuid4().hex}_{filename}",
-            resource_type="auto"  # <-- PHOTO + VIDEO both!
+            folder=folder,
+            public_id=f"{uuid.uuid4().hex}_{upload_file.filename.replace(' ', '_')[:30]}",
+            resource_type="auto"
         )
-        return result["secure_url"]
+        url = result.get("secure_url")
+        print(f"✅ Uploaded to Cloudinary: {url}")
+        return url
     except Exception as e:
-        print(f"Cloudinary failed: {e}")
+        print(f"❌ Cloudinary failed for {getattr(upload_file, 'filename', 'unknown')}: {e}")
         return None
+
 
 DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DB_PATH}")
 if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
